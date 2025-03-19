@@ -1,0 +1,8 @@
+# Add here the pip packages you would like to install on this virtual environment / kernel
+pip
+ipykernel
+torch_scatter
+torch_geometric
+pymetis
+texttable
+pandas
