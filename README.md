@@ -19,11 +19,11 @@ These layers aim to ensure more equitable outcomes by mitigating bias propagatio
 
 ## Repository Structure
 The repository contains two folders:
-* *Layers*: source code of the proposed FAME and A-FAME layers.
-* *Experiments*: notebooks with code used in the paper's experimental setup.
+* *Dataset*: Directory containing German, Credit, and Bail datasets.
+* *sc_venv_template*: Directory containing the virtual environment template. Use source sc_venv_template/activate.sh to activate the virtual environment.
 
 ## Datasets
-The datasets adopted in the paper's evaluation can be found at the following links:
+The datasets adopted in the paper's evaluation can be found at the following links (or in the datasets folder - in the case of German and Credit):
 - [German](https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data)
 - [Credit](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
 - [Pokec](https://snap.stanford.edu/data/soc-Pokec.html)
