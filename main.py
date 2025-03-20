@@ -5,57 +5,53 @@ from jsonargparse import CLI
 
 import torch
 import torch.nn.functional as F
+import torch_geometric
 from torch_geometric.nn import GCNConv, GATConv
 
 def set_device():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-class GCN(torch.nn.Module):
-    def __init__(self, data, fame=False, layers=2, hidden=16, dropout=0.5):
-        super(GCN, self).__init__()
+class GNN(torch.nn.Module):
+    def __init__(
+        self, 
+        data: torch_geometric.data.Data, 
+        model: str = "GCN", 
+        fame: bool = False, 
+        sens_attribute: torch.Tensor = None, 
+        layers: int = 2, 
+        hidden: int = 16, 
+        dropout: float = 0.5,
+    ):
+        super(GNN, self).__init__()
 
-        if fame:
-            conv = FAME
-        else:
-            conv = GCNConv
-        
-        self.conv1 = conv(data.num_node_features, hidden)
-        self.convs = torch.nn.ModuleList()
-        
-        for i in range(layers - 1):
-            self.convs.append(conv(hidden, hidden))
-        
-        self.conv2 = conv(hidden, 2)
-        self.dropout = dropout
+        if model == "GCN":    
+            self.convs = torch.nn.ModuleList()
 
-    def forward(self, x, edge_index, *args, **kwargs):
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=self.dropout, training=self.training)
+            if fame:
+                self.conv1 = FAME(data.num_node_features, hidden, sens_attribute)
+                for i in range(layers - 1):
+                    self.convs.append(FAME(hidden, hidden, sens_attribute))
+                self.conv2 = FAME(hidden, 2, sens_attribute)
+            else:
+                self.conv1 = GCNConv(data.num_node_features, hidden)
+                for i in range(layers - 1):
+                    self.convs.append(GCNConv(hidden, hidden))
+                self.conv2 = GCNConv(hidden, 2)
 
-        for conv in self.convs:
-            x = F.relu(conv(x, edge_index))
-            x = F.dropout(x, p=self.dropout, training=self.training)
+        elif model == "GAT":    
+            self.convs = torch.nn.ModuleList()
 
-        x = self.conv2(x, edge_index)
-        
-        return F.log_softmax(x, dim=1)
+            if fame:
+                self.conv1 = A_FAME(data.num_node_features, hidden, sens_attribute)
+                for i in range(layers - 1):
+                    self.convs.append(A_FAME(hidden, hidden, sens_attribute))
+                self.conv2 = A_FAME(hidden, 2, sens_attribute)
+            else:
+                self.conv1 = GATConv(data.num_node_features, hidden)
+                for i in range(layers - 1):
+                    self.convs.append(GATConv(hidden, hidden))
+                self.conv2 = GATConv(hidden, 2)
 
-class GAT(torch.nn.Module):
-    def __init__(self, data, fame=False, layers=2, hidden=16, dropout=0.5):
-        super(GAT, self).__init__()
-        
-        if fame:
-            conv = FAME
-        else:
-            conv = GATConv
-        
-        self.conv1 = conv(data.num_node_features, hidden)
-        self.convs = torch.nn.ModuleList()
-        
-        for i in range(layers - 1):
-            self.convs.append(conv(hidden, hidden))
-        
-        self.conv2 = conv(hidden, 2)
         self.dropout = dropout
 
     def forward(self, x, edge_index, *args, **kwargs):
@@ -70,6 +66,7 @@ class GAT(torch.nn.Module):
         
         return F.log_softmax(x, dim=1)
     
+
 def main(
     data_path: str = 'dataset',
     data_name: str = 'german',
@@ -80,16 +77,14 @@ def main(
     dropout: float = 0.5,
     epochs: int = 100,
 ):
-    data = preprocess_data(data_path, data_name, train_split=0.8, test_split=0.1)
     
-    if model == 'GCN':
-        model = GCN(data, fame=fame, layers=layers, hidden=hidden, dropout=dropout)
-    elif model == 'GAT':
-        model = GAT(data, fame=fame, layers=layers, hidden=hidden, dropout=dropout)
+    data, sens_attributes = preprocess_data(data_path, data_name, train_split=0.8, test_split=0.1)
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    model = GNN(data, model, fame, sens_attributes, layers=layers, hidden=hidden, dropout=dropout)    
+    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
     
     device = set_device()
+    print(f"Device: {device}")
     model.to(device)
     data.to(device)
     
@@ -97,9 +92,14 @@ def main(
     train(model, data, optimizer, epochs)
 
     model.eval()
-    test(model, data)
+    test(model, data, sens_attributes)
 
-def train(model, data, optimizer, epochs):
+def train(
+    model: torch.nn.Module, 
+    data: torch_geometric.data.Data, 
+    optimizer: torch.optim.Optimizer, 
+    epochs: int,
+):
     for epoch in range(epochs):
         optimizer.zero_grad()
         out = model(data.x, data.edge_index)
@@ -120,7 +120,11 @@ def train(model, data, optimizer, epochs):
 
 
 @torch.no_grad()
-def test(model, data):
+def test(
+    model: torch.nn.Module, 
+    data: torch_geometric.data.Data, 
+    sens_attributes: torch.Tensor,
+):
     with torch.inference_mode():
       out = model(data.x, data.edge_index)
 
@@ -130,7 +134,7 @@ def test(model, data):
     
     predictions = out.argmax(dim=1)
 
-    fairness_metrics = calculate_fairness(data, predictions, data.sensitive_attribute)
+    fairness_metrics = calculate_fairness(data, predictions, sens_attributes)
     fairness_metrics['Accuracy'] = accuracy
 
 if __name__=="__main__":
