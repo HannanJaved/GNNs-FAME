@@ -20,7 +20,8 @@ These layers aim to ensure more equitable outcomes by mitigating bias propagatio
 ## Repository Structure
 The repository contains two folders:
 * *Dataset*: Directory containing German, Credit, and Bail datasets.
-* *sc_venv_template*: Directory containing the virtual environment template. Use source sc_venv_template/activate.sh to activate the virtual environment.
+* *sc_venv_template*: Directory containing the virtual environment template.  
+Use `source sc_venv_template/activate.sh` to activate the virtual environment.
 
 ## Datasets
 The datasets adopted in the paper's evaluation can be found at the following links (or in the datasets folder - in the case of German and Credit):
