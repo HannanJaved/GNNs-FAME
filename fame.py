@@ -5,11 +5,14 @@ from torch.nn import Linear, Parameter
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, softmax
 
+from utils import set_device
+
 class FAME(MessagePassing):
     def __init__(self, in_channels, out_channels, sens_attribute_tensor):
         super(FAME, self).__init__(aggr='mean')  
         self.lin = Linear(in_channels, out_channels)
-        self.sensitive_attr = sens_attribute_tensor
+        device = set_device()
+        self.sensitive_attr = sens_attribute_tensor.to(device)
         self.bias_correction = Parameter(torch.rand(1))
 
     def forward(self, x, edge_index):
@@ -27,7 +30,7 @@ class FAME(MessagePassing):
         
         group_difference = self.sensitive_attr[row] - self.sensitive_attr[col]
         
-        fairness_adjustment = (1 + self.bias_correction * group_difference.view(-1, 1))
+        fairness_adjustment = (1 + self.bias_correction * group_difference.view(-1, 1).to(x_j.device))
 
         return fairness_adjustment * norm.view(-1, 1) * x_j
 
@@ -40,8 +43,8 @@ class A_FAME(MessagePassing):
         super(A_FAME, self).__init__(aggr='add') 
         self.lin = Linear(in_channels, out_channels) 
         self.att = Linear(2 * out_channels, 1) 
-        
-        self.sensitive_attr = sens_attribute_tensor 
+        device = set_device()
+        self.sensitive_attr = sens_attribute_tensor.to(device)
         self.bias_correction = Parameter(torch.rand(1))  
 
     def forward(self, x, edge_index):
@@ -58,7 +61,7 @@ class A_FAME(MessagePassing):
         row, col = edge_index
         group_difference = self.sensitive_attr[row] - self.sensitive_attr[col]
 
-        fairness_adjustment = self.bias_correction * group_difference.view(-1, 1)
+        fairness_adjustment = self.bias_correction * group_difference.view(-1, 1).to(x_j.device)
         alpha = alpha + fairness_adjustment
 
         alpha = softmax(alpha, edge_index[0], num_nodes=size_i)
@@ -67,4 +70,3 @@ class A_FAME(MessagePassing):
 
     def update(self, aggr_out):
         return aggr_out
-    

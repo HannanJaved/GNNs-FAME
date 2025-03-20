@@ -7,19 +7,10 @@ import torch
 import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.nn import GCNConv, GATConv
-from texttable import Texttable
 from tqdm import tqdm
 
-def set_device():
-    return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+from utils import set_device, print_metrics
 
-def print_metrics(metrics):
-    table = Texttable()
-    table.add_row(["Metric", "Value"])
-    for key, value in metrics.items():
-        table.add_row([key, value])
-    print(table.draw())
-    
 class GNN(torch.nn.Module):
     def __init__(
         self, 
@@ -79,12 +70,12 @@ class GNN(torch.nn.Module):
 def main(
     data_path: str = 'dataset',
     data_name: str = 'german',
-    model: str = 'GAT',
+    model: str = 'GCN',
     fame: bool = True,
-    layers: int = 2,
-    hidden: int = 16,
+    layers: int = 4,
+    hidden: int = 32,
     dropout: float = 0.5,
-    epochs: int = 100,
+    epochs: int = 500,
 ):
     data, sens_attributes = preprocess_data(data_path, data_name, train_split=0.8, test_split=0.1)
     
