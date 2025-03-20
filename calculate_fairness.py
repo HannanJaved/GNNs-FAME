@@ -43,7 +43,7 @@ def calculate_fairness(data, predictions, sensitive_attribute):
         ratio_group_1 = fn_group_1 / fp_group_1 if fp_group_1 != 0 else float('inf')
         ratio_group_0 = fn_group_0 / fp_group_0 if fp_group_0 != 0 else float('inf')
 
-        return abs(ratio_group_1 - ratio_group_0), ratio_group_0, ratio_group_1, fn_group_1, fp_group_1, fn_group_0, fp_group_0
+        return abs(ratio_group_1 - ratio_group_0), ratio_group_0, ratio_group_1
 
     # Calculating each fairness metric
     spd, sp_g0, sp_g1 = statistical_parity_difference()
