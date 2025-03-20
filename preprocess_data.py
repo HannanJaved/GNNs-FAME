@@ -24,7 +24,7 @@ def preprocess_data(data_dir, data_name, train_split, test_split=0.1):
         return
     
     data_dir = os.path.join(data_dir, data_name)
-    
+
     if data_name == "pokec-z":
         user_labels_path = os.path.join(data_dir, "region_job.csv")
         user_edges_path = os.path.join(data_dir, "region_job_relationship.csv")
