@@ -7,10 +7,19 @@ import torch
 import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.nn import GCNConv, GATConv
+from texttable import Texttable
+from tqdm import tqdm
 
 def set_device():
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+def print_metrics(metrics):
+    table = Texttable()
+    table.add_row(["Metric", "Value"])
+    for key, value in metrics.items():
+        table.add_row([key, value])
+    print(table.draw())
+    
 class GNN(torch.nn.Module):
     def __init__(
         self, 
@@ -70,29 +79,34 @@ class GNN(torch.nn.Module):
 def main(
     data_path: str = 'dataset',
     data_name: str = 'german',
-    model: str = 'GCN',
-    fame: bool = False,
+    model: str = 'GAT',
+    fame: bool = True,
     layers: int = 2,
     hidden: int = 16,
     dropout: float = 0.5,
     epochs: int = 100,
 ):
-    
     data, sens_attributes = preprocess_data(data_path, data_name, train_split=0.8, test_split=0.1)
     
+    print(f"Training a {model} model (fame: {fame}) on {data_name} dataset with {layers} layers, {hidden} hidden units, and dropout rate of {dropout}")
     model = GNN(data, model, fame, sens_attributes, layers=layers, hidden=hidden, dropout=dropout)    
-    optimizer = torch.optim.AdamW(model.parameters(), lr=0.01)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
     
     device = set_device()
     print(f"Device: {device}")
     model.to(device)
     data.to(device)
-    
+    sens_attributes.to(device)
+
     model.train()
+    print('\n' + "#"*25 + " Training Model " + "#"*25 + "\n")
     train(model, data, optimizer, epochs)
 
     model.eval()
-    test(model, data, sens_attributes)
+    metrics = test(model, data, sens_attributes)
+
+    print('\n' + "#"*25 + " Test Metrics " + "#"*25 + "\n")
+    print_metrics(metrics)
 
 def train(
     model: torch.nn.Module, 
@@ -100,7 +114,7 @@ def train(
     optimizer: torch.optim.Optimizer, 
     epochs: int,
 ):
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs), desc="Training Epochs"):
         optimizer.zero_grad()
         out = model(data.x, data.edge_index)
         
@@ -133,9 +147,12 @@ def test(
     accuracy = correct / int(data.test_mask.sum())
     
     predictions = out.argmax(dim=1)
+    predictions = predictions.to('cpu') 
 
     fairness_metrics = calculate_fairness(data, predictions, sens_attributes)
     fairness_metrics['Accuracy'] = accuracy
+
+    return fairness_metrics
 
 if __name__=="__main__":
     CLI(main)

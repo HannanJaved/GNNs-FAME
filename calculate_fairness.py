@@ -10,13 +10,12 @@ def calculate_fairness(data, predictions, sensitive_attribute):
     Returns:
     A dictionary containing SPD, EOD, OAED, and TED values.
     """
+    data = data.to('cpu')
     labels = data.y
-    labels = labels.to('cpu')
-    sensitive_attribute = sensitive_attribute.to('cpu')
 
-    predictions = predictions.float()
-    labels = labels.float()
-    sensitive_attribute = sensitive_attribute.float()
+    predictions = predictions.to('cpu').float()
+    labels = labels.to('cpu').float()
+    sensitive_attribute = sensitive_attribute.to('cpu').float()
 
     def statistical_parity_difference():
         prob_group_1 = predictions[sensitive_attribute == 1].mean()

@@ -9,3 +9,4 @@ texttable
 pandas
 scikit-learn
 torch
+texttable
