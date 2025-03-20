@@ -1,8 +1,11 @@
 # Add here the pip packages you would like to install on this virtual environment / kernel
 pip
+numpy
 ipykernel
 torch_scatter
 torch_geometric
 pymetis
 texttable
 pandas
+scikit-learn
+torch

@@ -5,7 +5,7 @@ import torch
 from torch_geometric.data import Data
 from sklearn.model_selection import train_test_split
 
-def preprocess_data(data_dir, data_name, train_split, test_split):
+def preprocess_data(data_dir, data_name, train_split, test_split=0.1):
     """"
     Function to preprocess the datasets from the data directory
     
@@ -22,6 +22,8 @@ def preprocess_data(data_dir, data_name, train_split, test_split):
     if data_name not in ["credit", "german", "pokec-z"]:
         print("Invalid dataset name. Please choose from 'credit', 'german', or 'pokec-z'")
         return
+    
+    data_dir = os.path.join(data_dir, data_name)
     
     if data_name == "pokec-z":
         user_labels_path = os.path.join(data_dir, "region_job.csv")
