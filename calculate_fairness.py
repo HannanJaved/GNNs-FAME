@@ -1,4 +1,4 @@
-def calculate_fairness(data, predictions, sensitive_attribute):
+def calculate_fairness(data, predictions, sensitive_attribute, verbose=True):
     """
     Calculate various fairness metrics.
 
@@ -6,6 +6,7 @@ def calculate_fairness(data, predictions, sensitive_attribute):
     label: Actual labels (binary).
     predictions: Model predictions (binary).
     sens_attr: Binary sensitive attribute for fairness evaluation.
+    verbose: If True, prints debug information.
 
     Returns:
     A dictionary containing SPD, EOD, OAED, and TED values.
@@ -16,6 +17,14 @@ def calculate_fairness(data, predictions, sensitive_attribute):
     predictions = predictions.to('cpu').float()
     labels = labels.to('cpu').float()
     sensitive_attribute = sensitive_attribute.to('cpu').float()
+
+    if verbose:
+        print(f"Number of actual labels: {len(labels)}")
+        print(f"Number of predictions: {len(predictions)}")
+        print(f"Number of sensitive attributes: {len(sensitive_attribute)}")
+        print(f"Labels distribution: {labels.long().bincount()}")
+        print(f"Predictions distribution: {predictions.long().bincount()}")
+        print(f"Sensitive attribute distribution: {sensitive_attribute.long().bincount()}")
 
     def statistical_parity_difference():
         prob_group_1 = predictions[sensitive_attribute == 1].mean()
