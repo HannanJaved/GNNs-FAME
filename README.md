@@ -15,6 +15,8 @@ Graph Neural Networks (GNNs) are powerful tools for learning representations of 
 - **FAME (Fairness-Aware Message Passing)**: This layer adjusts the messages during the aggregation phase based on the disparities in sensitive attributes of connected nodes.
 - **A-FAME (Attention Fairness-Aware Message Passing)**: This layer extends FAME by incorporating an attention mechanism to weigh the importance of node connections dynamically.
 
+Note: enhanced_fame is a WIP extension of this repository.
+
 These layers aim to ensure more equitable outcomes by mitigating bias propagation within GNNs.
 
 ## Repository Structure
@@ -24,7 +26,8 @@ The repository contains two folders:
 Use `source sc_venv_template/activate.sh` to activate the virtual environment.
 
 ## Datasets
-Extract the datasets from the datasets folder. Run the file `preprocess_data.py` to preprocess the datasets first, then run file `set_uid.py` to set the unique identifier for each node in the dataset.
+Extract the datasets from the datasets folder.  
+Run the file `preprocess_data.py` to preprocess the datasets first, then run file `set_uid.py` to set the unique identifier for each node in the dataset.  
 The datasets adopted in the paper's evaluation can be found at the following links (or in the datasets folder - in the case of German and Credit):
 - [German](https://archive.ics.uci.edu/dataset/144/statlog+german+credit+data)
 - [Credit](https://archive.ics.uci.edu/dataset/350/default+of+credit+card+clients)
