@@ -20,10 +20,15 @@ Note: enhanced_fame is a WIP extension of this repository.
 These layers aim to ensure more equitable outcomes by mitigating bias propagation within GNNs.
 
 ## Repository Structure
-The repository contains two folders:
+The repository contains:
 * *Dataset*: Directory containing German, Credit, and Bail datasets.
-* *sc_venv_template*: Directory containing the virtual environment template.  
-Use `source sc_venv_template/activate.sh` to activate the virtual environment.
+* *calculate_fairness.py*: File containing the implementation of the fairness metrics calculation.
+* *fame.py*: File containing the implementation of the FAME and A-FAME layers.
+* *main.py*: File containing the implementation of the training and evaluation of the GNN models.
+* *model.py*: File containing the implementation of the GNN models (GCN, GAT, FAME, A-FAME).
+* *preprocess_data.py*: File containing the implementation of the data preprocessing.
+* *set_uid.py*: File containing the implementation of the unique identifier setting for each node in the dataset.
+* *utils.py*: File containing the implementation of the utility functions.
 
 ## Datasets
 Extract the datasets from the datasets folder.  
