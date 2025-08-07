@@ -150,8 +150,15 @@ def _load_nba_data(data_dir):
 
 def _load_pokec_data(data_dir, region_name):
     """Loads a region-specific Pokec dataset (pokec-z or pokec-n)."""
-    df_path = os.path.join(data_dir, "region_job.csv")
-    edges_path = os.path.join(data_dir, "region_job_relationship.csv")
+    if region_name not in ['pokec-z', 'pokec-n']:
+        raise ValueError("Invalid region name. Choose from 'pokec-z' or 'pokec-n'.")
+
+    if region_name == 'pokec-z':
+        df_path = os.path.join(data_dir, "region_job.csv")
+        edges_path = os.path.join(data_dir, "region_job_relationship.csv")
+    else:
+        df_path = os.path.join(data_dir, "region_job_2.csv")
+        edges_path = os.path.join(data_dir, "region_job_relationship_2.csv")
 
     user_labels_full = pd.read_csv(df_path)
     user_edges = pd.read_csv(edges_path)
