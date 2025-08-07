@@ -129,7 +129,7 @@ def _load_bail_data(data_dir):
 def _load_nba_data(data_dir):
     """Loads the NBA player dataset."""
     df_path = os.path.join(data_dir, "nba.csv")
-    edges_path = os.path.join(data_dir, "nba_edges.csv")
+    edges_path = os.path.join(data_dir, "nba_relationship.csv")
 
     user_labels = pd.read_csv(df_path)
     user_edges = pd.read_csv(edges_path)
