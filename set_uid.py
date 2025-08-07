@@ -43,7 +43,7 @@ if __name__ == "__main__":
         "german": "dataset/german/german_edges.txt",
         "nba": "dataset/nba/nba_relationship.txt",
         "bail": "dataset/bail/bail_edges.txt",
-        "pokec-n": "dataset/pokec/region_job_relationship2.txt",
+        "pokec-n": "dataset/pokec/region_job_2_relationship.txt",
         "pokec-z": "dataset/pokec/region_job_relationship.txt"
     }
     
