@@ -158,7 +158,7 @@ def _load_pokec_data(data_dir, region_name):
         edges_path = os.path.join(data_dir, "region_job_relationship.csv")
     else:
         df_path = os.path.join(data_dir, "region_job_2.csv")
-        edges_path = os.path.join(data_dir, "region_job_relationship_2.csv")
+        edges_path = os.path.join(data_dir, "region_job_2_relationship.csv")
 
     user_labels_full = pd.read_csv(df_path)
     user_edges = pd.read_csv(edges_path)
