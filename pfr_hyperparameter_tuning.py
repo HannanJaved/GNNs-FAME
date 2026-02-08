@@ -13,14 +13,14 @@ from typing import Dict, Any, Tuple, List
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import PFR-specific components
+# PFR-specific components
 from progressive_fairness_loss import ProgressiveFairnessLoss
 from preprocess_data import preprocess_data
 from calculate_fairness import calculate_fairness
 from utils import set_device
 from msfl_evaluation_framework import FairnessEvaluator
 
-# Import base GNN architecture
+# base GNN architecture
 from model import GNN
 
 
@@ -53,21 +53,21 @@ class GNNWithLayerOutputs(nn.Module):
         h = self.gnn.conv1(x, edge_index)
         h = F.relu(h)
         h = F.dropout(h, p=self.gnn.dropout, training=self.training)
-        layer_outputs.append(h)  # Don't clone - keep gradient flow!
+        layer_outputs.append(h)  
 
         # Middle layers (convs)
         for conv in self.gnn.convs:
             h = conv(h, edge_index)
             h = F.relu(h)
             h = F.dropout(h, p=self.gnn.dropout, training=self.training)
-            layer_outputs.append(h)  # Don't clone - keep gradient flow!
+            layer_outputs.append(h)  
 
         # Store embeddings before final layer
         embeddings = h
 
         # Final layer (conv2)
         h = self.gnn.conv2(h, edge_index)
-        layer_outputs.append(h)  # Don't clone - keep gradient flow!
+        layer_outputs.append(h)  
 
         # Final output (log_softmax)
         output = F.log_softmax(h, dim=1)
@@ -159,9 +159,13 @@ class PFRHyperparameterTuning:
             'lambda_pfr': [0.1, 0.3, 0.5, 1.0],
             'fairness_metrics': [
                 ['representation_mmd'],
-                ['representation_variance'],
-                ['representation_mmd', 'representation_variance']
-            ]
+                ['conditional_mmd_eod'],
+                ['representation_mmd', 'conditional_mmd_eod'],
+                ['representation_mmd', 'representation_variance'],
+                ['conditional_mmd_equalized_odds']
+            ],
+            'mmd_kernel': ['rbf', 'linear'],
+            'kernel_num': [3, 5, 7]
         }
 
         # Gradient Conflict specific parameters
@@ -200,7 +204,7 @@ class PFRHyperparameterTuning:
 
         # Create loss function based on model type
         if model_type == 'vanilla':
-            # No fairness - just use NLLLoss with class weights
+            # No fairness - NLLLoss with class weights
             loss_fn = nn.NLLLoss(weight=self.class_weights)
 
         elif model_type in ['pfr', 'gc_pfr']:
@@ -212,8 +216,11 @@ class PFRHyperparameterTuning:
                 alpha=params.get('alpha', 1.0),
                 beta=params.get('beta', 0.1),
                 learnable_schedule=False,
-                fairness_metrics=params.get('fairness_metrics', ['representation_mmd', 'representation_variance']),
-                class_weights=None,  # We'll handle class weights in task loss separately
+                fairness_metrics=params.get('fairness_metrics', ['representation_mmd', 'conditional_mmd_eod']),
+                class_weights=None, 
+                # MMD parameters
+                mmd_kernel=params.get('mmd_kernel', 'rbf'),
+                kernel_num=params.get('kernel_num', 5),
                 # Gradient conflict parameters
                 use_gradient_conflict=use_gc,
                 conflict_strategy=params.get('conflict_strategy', 'inverse') if use_gc else 'inverse',
@@ -258,6 +265,22 @@ class PFRHyperparameterTuning:
 
         # Training loop
         model.train()
+
+        # Track correlation every 20 epochs for PFR/GC-PFR
+        track_correlation_interval = 20
+
+        # Store epoch-level metrics for analysis
+        epoch_history = {
+            'epoch': [],
+            'train_loss': [],
+            'val_acc': [],
+            'mmd_spd_correlation': [],
+            'conditional_mmd_eod_correlation': [],
+            'latest_mmd': [],
+            'latest_spd': [],
+            'latest_eod': []
+        }
+
         for epoch in range(epochs):
             optimizer.zero_grad()
 
@@ -293,21 +316,58 @@ class PFRHyperparameterTuning:
             loss.backward()
             optimizer.step()
 
-            # Validation for early stopping
+            # Store training loss
+            epoch_history['epoch'].append(epoch)
+            epoch_history['train_loss'].append(loss.item())
+
+            # Validation for early stopping and correlation tracking
             if epoch % 10 == 0:
                 model.eval()
                 with torch.no_grad():
-                    val_output, _, _ = model(self.data.x, self.data.edge_index, return_embeddings=True)
+                    val_output, val_embeddings, _ = model(self.data.x, self.data.edge_index, return_embeddings=True)
                     val_preds = val_output[self.data.val_mask]
                     val_labels = self.data.y[self.data.val_mask]
 
                     val_acc = (val_preds.argmax(dim=1) == val_labels).float().mean().item()
+
+                    # Store validation accuracy at this epoch
+                    epoch_history['val_acc'].append(val_acc)
 
                     if val_acc > best_val_acc:
                         best_val_acc = val_acc
                         patience_counter = 0
                     else:
                         patience_counter += 1
+
+                    # Track correlation for PFR/GC-PFR models
+                    if model_type != 'vanilla' and epoch % track_correlation_interval == 0:
+                        # Get predictions as probabilities
+                        val_probs = torch.exp(val_output[self.data.val_mask])[:, 1] if val_output.size(1) > 1 else torch.exp(val_output[self.data.val_mask])[:, 0]
+
+                        loss_fn.update_correlation_metrics(
+                            embeddings=val_embeddings[self.data.val_mask],
+                            predictions=val_probs,
+                            labels=self.data.y[self.data.val_mask],
+                            sensitive_attr=self.sensitive_attr[self.data.val_mask]
+                        )
+
+                        # Get correlation statistics at this epoch
+                        corr_stats = loss_fn.get_correlation_statistics()
+                        epoch_history['mmd_spd_correlation'].append(
+                            corr_stats.get('mmd_spd_correlation', np.nan)
+                        )
+                        epoch_history['conditional_mmd_eod_correlation'].append(
+                            corr_stats.get('conditional_mmd_eod_correlation', np.nan)
+                        )
+                        epoch_history['latest_mmd'].append(
+                            corr_stats.get('latest_mmd', np.nan)
+                        )
+                        epoch_history['latest_spd'].append(
+                            corr_stats.get('latest_spd', np.nan)
+                        )
+                        epoch_history['latest_eod'].append(
+                            corr_stats.get('latest_eod', np.nan)
+                        )
 
                     if patience_counter >= patience:
                         break
@@ -338,6 +398,9 @@ class PFRHyperparameterTuning:
             metrics['epochs_trained'] = epoch + 1
             metrics['best_val_acc'] = best_val_acc
 
+            # Add epoch-level history
+            metrics['epoch_history'] = epoch_history
+
             # Add PFR-specific metrics if applicable
             if model_type != 'vanilla':
                 # Compute PFR metrics on test set
@@ -359,8 +422,14 @@ class PFRHyperparameterTuning:
                     'alpha': pfr_result['alpha'],
                     'beta': pfr_result['beta'],
                     'lambda_pfr': lambda_pfr,
-                    'fairness_metrics_used': params.get('fairness_metrics', [])
+                    'fairness_metrics_used': params.get('fairness_metrics', []),
+                    'mmd_kernel': params.get('mmd_kernel', 'rbf'),
+                    'kernel_num': params.get('kernel_num', 5)
                 }
+
+                # Add correlation statistics
+                correlation_stats = loss_fn.get_correlation_statistics()
+                metrics['pfr_specific']['correlation_statistics'] = correlation_stats
 
                 # Add gradient conflict info if GC-PFR
                 if 'gradient_conflicts' in pfr_result:
@@ -401,14 +470,20 @@ class PFRHyperparameterTuning:
             params['beta'] = trial.suggest_categorical('beta', [0.0, 0.1, 0.2])
             params['lambda_pfr'] = trial.suggest_categorical('lambda_pfr', [0.1, 0.3, 0.5, 1.0])
 
-            # Fairness metrics - suggest index then map to actual metrics list
+            # Fairness metrics 
             metrics_options = [
                 ['representation_mmd'],
-                ['representation_variance'],
-                ['representation_mmd', 'representation_variance']
+                ['conditional_mmd_eod'],
+                ['representation_mmd', 'conditional_mmd_eod'],
+                ['representation_mmd', 'representation_variance'],
+                ['conditional_mmd_equalized_odds']
             ]
-            metrics_idx = trial.suggest_categorical('fairness_metrics_idx', [0, 1, 2])
+            metrics_idx = trial.suggest_categorical('fairness_metrics_idx', [0, 1, 2, 3, 4])
             params['fairness_metrics'] = metrics_options[metrics_idx]
+
+            # MMD kernel parameters
+            params['mmd_kernel'] = trial.suggest_categorical('mmd_kernel', ['rbf', 'linear'])
+            params['kernel_num'] = trial.suggest_categorical('kernel_num', [3, 5, 7])
 
         # Add gradient conflict parameters for gc_pfr
         if model_type == 'gc_pfr':
@@ -483,6 +558,7 @@ class PFRHyperparameterTuning:
                 print(f"\n  ===== PFR-Specific Metrics =====")
                 print(f"  Schedule: {pfr['schedule_type']} (α={pfr['alpha']}, β={pfr['beta']}), λ_PFR={pfr['lambda_pfr']}")
                 print(f"  Fairness Metrics: {pfr['fairness_metrics_used']}")
+                print(f"  MMD Kernel: {pfr.get('mmd_kernel', 'rbf')} (num_kernels={pfr.get('kernel_num', 5)})")
 
                 if pfr.get('use_gradient_conflict', False):
                     print(f"  Gradient Conflict: True (strategy={pfr['conflict_strategy']})")
@@ -498,12 +574,29 @@ class PFRHyperparameterTuning:
                     conflicts = pfr['gradient_conflicts']
                     print(f"  Gradient Conflicts: [{', '.join([f'{c:.3f}' for c in conflicts])}]")
 
+                # Display correlation statistics
+                if 'correlation_statistics' in pfr:
+                    corr_stats = pfr['correlation_statistics']
+                    print(f"\n  ===== Correlation Statistics =====")
+                    if 'mmd_spd_correlation' in corr_stats:
+                        corr_val = corr_stats['mmd_spd_correlation']
+                        status = "✓ STRONG" if abs(corr_val) > 0.6 else ("⚠ MODERATE" if abs(corr_val) > 0.3 else "✗ WEAK")
+                        print(f"  MMD ↔ SPD Correlation:  {corr_val:+.4f}  {status}")
+                    if 'conditional_mmd_eod_correlation' in corr_stats:
+                        corr_val = corr_stats['conditional_mmd_eod_correlation']
+                        status = "✓ STRONG" if abs(corr_val) > 0.6 else ("⚠ MODERATE" if abs(corr_val) > 0.3 else "✗ WEAK")
+                        print(f"  Conditional MMD ↔ EOD:  {corr_val:+.4f}  {status}")
+                    if 'note' not in corr_stats and 'latest_mmd' in corr_stats:
+                        print(f"  Latest MMD: {corr_stats.get('latest_mmd', 0):.6f}, SPD: {corr_stats.get('latest_spd', 0):.4f}")
+                        if 'latest_conditional_mmd' in corr_stats:
+                            print(f"  Latest Cond MMD: {corr_stats.get('latest_conditional_mmd', 0):.6f}, EOD: {corr_stats.get('latest_eod', 0):.4f}")
+
             print(f"\n  Objective Score: {objective:.4f}")
             print(f"{'='*70}\n")
 
             # Warning if model is collapsing
             if 'warning_prediction_collapse' in metrics['performance']:
-                print(f"  ⚠️  WARNING: {metrics['performance']['warning_prediction_collapse']}")
+                print(f"    WARNING: {metrics['performance']['warning_prediction_collapse']}")
 
             return objective
 
